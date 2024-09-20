@@ -217,6 +217,7 @@ async function googleScrapper(queries, batchSize = 2) {
         output.push({
           query: searchTerm,
           results: await fetchContentFromURLs(results, searchTerm),
+          // results: results,
         });
       } catch (error) {
         console.error(`Error during scraping for '${searchTerm}':`, error);

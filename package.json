@@ -14,5 +14,6 @@
     "cheerio": "1.0.0-rc.12",
     "puppeteer": "^22.8.0",
     "string-similarity-js": "^2.1.4"
-  }
+  },
+  "type": "module"
 }
