@@ -177,6 +177,39 @@ function cleanText(input) {
   return cleanedInput;
 }
 
+async function scrapeGoogleSearchResults(page, searchTerm) {
+  const output = [];
+  try {
+    await page.goto(
+      `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`
+    );
+
+    await page.waitForSelector("div.N54PNb.BToiNc");
+
+    const htmlContent = await page.content();
+
+    fs.writeFileSync("output.html", htmlContent);
+
+    const $ = cheerio.load(htmlContent);
+
+    $("div.N54PNb.BToiNc").each((index, element) => {
+      const div = $(element);
+
+      const header = div.find("h3.LC20lb.MBeuO.DKV0Md").text().trim();
+      const snippet = div
+        .find("div.VwiC3b.yXK7lf.p4wth.r025kc.hJNv6b.Hdw6tb span")
+        .text()
+        .trim();
+      const link = div.find('a[jsname="UWckNb"]').attr("href");
+
+      output.push({ header, snippet: cleanText(snippet), link });
+    });
+  } catch (error) {
+    console.error(`Error during scraping for '${searchTerm}':`, error);
+  }
+  return output;
+}
+
 async function googleScrapper(queries, batchSize = 2) {
   const browser = await puppeteer.launch({
     headless: false,
@@ -189,43 +222,24 @@ async function googleScrapper(queries, batchSize = 2) {
   for (const batch of queryBatches) {
     const scrapingPromises = batch.map(async (searchTerm) => {
       const page = await browser.newPage();
-      const output = [];
+      let results = [];
 
       try {
-        await page.goto(
-          `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`
-        );
-        await page.waitForSelector("div.N54PNb.BToiNc.cvP2Ce");
-
-        const htmlContent = await page.content();
-        const $ = cheerio.load(htmlContent);
-
-        const results = [];
-
-        $("div.N54PNb.BToiNc.cvP2Ce").each(async (index, element) => {
-          const div = $(element);
-          const header = div.find("h3.LC20lb.MBeuO.DKV0Md").text().trim();
-          const snippet = div
-            .find("div.VwiC3b.yXK7lf.lVm3ye.r025kc.hJNv6b span")
-            .text()
-            .trim();
-          const link = div.find('a[jsname="UWckNb"]').attr("href");
-
-          results.push({ header, snippet: cleanText(snippet), link });
-        });
-
-        output.push({
-          query: searchTerm,
-          results: await fetchContentFromURLs(results, searchTerm),
-          // results: results,
-        });
+        // Call the separate scraping function for each search term
+        results = await scrapeGoogleSearchResults(page, searchTerm);
       } catch (error) {
-        console.error(`Error during scraping for '${searchTerm}':`, error);
+        console.error(
+          `Error during batch scraping for '${searchTerm}':`,
+          error
+        );
       } finally {
         await page.close();
       }
 
-      return output;
+      return {
+        query: searchTerm,
+        results: await fetchContentFromURLs(results, searchTerm),
+      };
     });
 
     try {
